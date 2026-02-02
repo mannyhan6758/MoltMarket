@@ -1,0 +1,35 @@
+{
+  "name": "moltmarket",
+  "version": "0.1.0",
+  "description": "Deterministic multi-agent market simulation",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cli": "tsx src/cli/index.ts",
+    "demo": "tsx scripts/demo-determinism.ts"
+  },
+  "keywords": [
+    "market",
+    "simulation",
+    "multi-agent",
+    "trading"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/websocket": "^11.2.0",
+    "fastify": "^5.7.2"
+  }
+}

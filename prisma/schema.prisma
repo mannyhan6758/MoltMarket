@@ -1,0 +1,181 @@
+// MoltMarket Database Schema
+// Prisma schema for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Simulation run metadata
+model Run {
+  id              String    @id @default(uuid())
+  seed            BigInt
+  scenarioVersion String    @map("scenario_version")
+  status          RunStatus @default(created)
+  config          Json
+  currentTick     BigInt    @default(0) @map("current_tick")
+  eventCount      BigInt    @default(0) @map("event_count")
+  lastEventHash   String    @default("GENESIS") @map("last_event_hash")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  startedAt       DateTime? @map("started_at")
+  stoppedAt       DateTime? @map("stopped_at")
+
+  agents           Agent[]
+  events           Event[]
+  orders           Order[]
+  trades           Trade[]
+  metricsSnapshots MetricsSnapshot[]
+
+  @@map("runs")
+}
+
+enum RunStatus {
+  created
+  running
+  stopped
+  completed
+}
+
+// Agent registry and state
+model Agent {
+  id              String      @id @default(uuid())
+  runId           String      @map("run_id")
+  apiKeyHash      String      @map("api_key_hash")
+  name            String
+  cashBalance     Decimal     @map("cash_balance") @db.Decimal(20, 8)
+  assetBalance    Decimal     @map("asset_balance") @db.Decimal(20, 8)
+  status          AgentStatus @default(active)
+  actionsThisTick Int         @default(0) @map("actions_this_tick")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  bankruptAtTick  BigInt?     @map("bankrupt_at_tick")
+
+  run              Run               @relation(fields: [runId], references: [id])
+  orders           Order[]
+  bidTrades        Trade[]           @relation("BidAgent")
+  askTrades        Trade[]           @relation("AskAgent")
+  events           Event[]
+  metricsSnapshots MetricsSnapshot[]
+
+  @@index([runId, apiKeyHash])
+  @@map("agents")
+}
+
+enum AgentStatus {
+  active
+  bankrupt
+  inactive
+}
+
+// Append-only event log with hash chain
+model Event {
+  id        BigInt    @id @default(autoincrement())
+  runId     String    @map("run_id")
+  tickId    BigInt    @map("tick_id")
+  eventSeq  BigInt    @map("event_seq")
+  eventType String    @map("event_type")
+  agentId   String?   @map("agent_id")
+  payload   Json
+  prevHash  String    @map("prev_hash")
+  eventHash String    @map("event_hash")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  run   Run    @relation(fields: [runId], references: [id])
+  agent Agent? @relation(fields: [agentId], references: [id])
+
+  @@index([runId, tickId, eventSeq])
+  @@index([runId, eventType])
+  @@index([runId, agentId])
+  @@map("events")
+}
+
+// Active order book state
+model Order {
+  id             String      @id @default(uuid())
+  runId          String      @map("run_id")
+  agentId        String      @map("agent_id")
+  side           OrderSide
+  price          Decimal     @db.Decimal(20, 8)
+  quantity       Decimal     @db.Decimal(20, 8)
+  filledQuantity Decimal     @default(0) @map("filled_quantity") @db.Decimal(20, 8)
+  status         OrderStatus @default(open)
+  tickCreated    BigInt      @map("tick_created")
+  sequenceNum    BigInt      @map("sequence_num")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  run       Run     @relation(fields: [runId], references: [id])
+  agent     Agent   @relation(fields: [agentId], references: [id])
+  bidTrades Trade[] @relation("BidOrder")
+  askTrades Trade[] @relation("AskOrder")
+
+  @@index([runId, side, price, sequenceNum])
+  @@index([runId, agentId, status])
+  @@map("orders")
+}
+
+enum OrderSide {
+  bid
+  ask
+}
+
+enum OrderStatus {
+  open
+  filled
+  cancelled
+  expired
+}
+
+// Executed trades
+model Trade {
+  id         String   @id @default(uuid())
+  runId      String   @map("run_id")
+  tickId     BigInt   @map("tick_id")
+  price      Decimal  @db.Decimal(20, 8)
+  quantity   Decimal  @db.Decimal(20, 8)
+  bidOrderId String   @map("bid_order_id")
+  askOrderId String   @map("ask_order_id")
+  bidAgentId String   @map("bid_agent_id")
+  askAgentId String   @map("ask_agent_id")
+  feeTotal   Decimal  @map("fee_total") @db.Decimal(20, 8)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  run      Run   @relation(fields: [runId], references: [id])
+  bidOrder Order @relation("BidOrder", fields: [bidOrderId], references: [id])
+  askOrder Order @relation("AskOrder", fields: [askOrderId], references: [id])
+  bidAgent Agent @relation("BidAgent", fields: [bidAgentId], references: [id])
+  askAgent Agent @relation("AskAgent", fields: [askAgentId], references: [id])
+
+  @@index([runId, tickId])
+  @@index([runId, bidAgentId])
+  @@index([runId, askAgentId])
+  @@map("trades")
+}
+
+// Periodic agent metrics snapshots
+model MetricsSnapshot {
+  id           BigInt   @id @default(autoincrement())
+  runId        String   @map("run_id")
+  agentId      String   @map("agent_id")
+  tickId       BigInt   @map("tick_id")
+  cashBalance  Decimal  @map("cash_balance") @db.Decimal(20, 8)
+  assetBalance Decimal  @map("asset_balance") @db.Decimal(20, 8)
+  equity       Decimal  @db.Decimal(20, 8)
+  pnl          Decimal  @db.Decimal(20, 8)
+  pnlPct       Decimal  @map("pnl_pct") @db.Decimal(10, 6)
+  maxEquity    Decimal  @map("max_equity") @db.Decimal(20, 8)
+  drawdown     Decimal  @db.Decimal(10, 6)
+  tradeCount   Int      @map("trade_count")
+  orderCount   Int      @map("order_count")
+  rejectCount  Int      @map("reject_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  run   Run   @relation(fields: [runId], references: [id])
+  agent Agent @relation(fields: [agentId], references: [id])
+
+  @@index([runId, tickId])
+  @@index([runId, agentId, tickId])
+  @@map("metrics_snapshots")
+}

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: moltmarket
+      POSTGRES_PASSWORD: moltmarket
+      POSTGRES_DB: moltmarket
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moltmarket"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://moltmarket:moltmarket@postgres:5432/moltmarket
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run cli demo
+
+volumes:
+  postgres_data:
