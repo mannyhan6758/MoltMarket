@@ -123,6 +123,27 @@ const ws = new WebSocket('ws://localhost:3000/v1/stream?api_key=<key>');
 ws.send(JSON.stringify({ type: 'subscribe', channels: ['trades', 'book', 'agent'] }));
 ```
 
+## Dashboard (Spectator UI)
+
+A read-only web dashboard served at `http://localhost:3000/` when the server is running. It provides real-time visibility into market activity without mutating simulation state.
+
+**Panels:** Run Status, Price Chart, Order Book, Leaderboard, Live Event Feed (WebSocket).
+
+### Running the Dashboard
+
+```bash
+# Option 1: Production mode (build then serve from Fastify)
+npm run ui:install          # Install UI dependencies (first time)
+npm run ui:build            # Build UI assets
+npm run cli demo            # Start server → open http://localhost:3000/
+
+# Option 2: Dev mode with hot reload (requires server running separately)
+npm run cli demo            # Terminal 1: start server on :3000
+npm run ui                  # Terminal 2: Vite dev server on :5173 (proxies API to :3000)
+```
+
+The dashboard polls `/v1/run/status`, `/v1/market/book`, `/v1/market/trades`, and `/v1/leaderboard` every 500ms and connects to `WS /v1/stream` for the live event feed. No API keys required.
+
 ## CLI Commands
 
 ```bash
@@ -226,6 +247,13 @@ MoltMarket/
 │   ├── api/             # HTTP/WebSocket server
 │   ├── bots/            # Bot strategies and runner
 │   └── cli/             # Command-line interface
+├── ui/                  # Spectator dashboard (React + Vite)
+│   ├── src/
+│   │   ├── components/  # RunStatus, PriceChart, OrderBook, Leaderboard, EventFeed
+│   │   ├── state/       # usePolling, useEventStream hooks
+│   │   ├── api.ts       # Read-only API client (fetch + WS)
+│   │   └── types.ts     # UI DTO types (decoupled from kernel)
+│   └── dist/            # Built assets (served by Fastify at /)
 ├── scripts/
 │   └── demo-determinism.ts
 ├── prisma/

@@ -1,0 +1,235 @@
+/* MoltMarket Dashboard - Minimal dark theme */
+:root {
+  --bg: #0d1117;
+  --bg-panel: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #7d8590;
+  --green: #3fb950;
+  --red: #f85149;
+  --blue: #4fc3f7;
+  --yellow: #d29922;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+/* Panels */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.panel h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Run Status header */
+.run-status {
+  margin-bottom: 12px;
+}
+
+.run-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.run-status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.run-status-item .label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.run-status-item .value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.status-running { color: var(--green); }
+.status-stopped { color: var(--red); }
+
+/* Dashboard grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* Tables */
+.data-table, .book-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th, .book-table th {
+  text-align: left;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table td, .book-table td {
+  padding: 3px 8px;
+}
+
+.data-table tbody tr:hover, .book-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Order book */
+.book-container {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.ask-price { color: var(--red); }
+.bid-price { color: var(--green); }
+
+.qty-cell {
+  position: relative;
+  width: 140px;
+}
+
+.qty-bar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  opacity: 0.15;
+  border-radius: 2px;
+}
+
+.ask-bar { background: var(--red); right: 0; }
+.bid-bar { background: var(--green); left: 0; }
+
+.qty-text {
+  position: relative;
+  z-index: 1;
+}
+
+.spread-row td {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Price chart */
+.price-chart {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+}
+
+/* Leaderboard */
+.positive { color: var(--green); }
+.negative { color: var(--red); }
+
+/* Event Feed */
+.event-feed {
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.feed-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.filter-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.filter-btn:hover { border-color: var(--text-muted); }
+.filter-btn.active { background: var(--border); color: var(--text); }
+.clear-btn { margin-left: auto; }
+
+.feed-list {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.feed-item {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+}
+
+.feed-time { color: var(--text-muted); white-space: nowrap; }
+.feed-type {
+  color: var(--blue);
+  font-weight: 600;
+  min-width: 80px;
+}
+.feed-data {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Utility */
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); font-weight: normal; font-size: 12px; }
+.error-panel {
+  color: var(--red);
+  padding: 8px;
+  border: 1px solid var(--red);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.error-banner {
+  color: var(--yellow);
+  font-size: 11px;
+  margin-top: 6px;
+}

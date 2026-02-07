@@ -5,11 +5,13 @@
  * Command-line interface for managing simulations.
  */
 
+import { join } from 'node:path';
 import { createKernel, Kernel } from '../kernel/tick-controller.js';
 import { createApiServer, ApiServer } from '../api/server.js';
 import type { RunConfig } from '../types/domain.js';
 import { parseAmount, formatAmount } from '../types/amount.js';
 import { generateId } from '../utils/hash.js';
+import { saveRunData } from '../persistence.js';
 
 const DEFAULT_CONFIG: RunConfig = {
   initialCash: parseAmount('10000.00'),
@@ -248,6 +250,44 @@ async function main() {
       break;
     }
 
+    case 'serve': {
+      // Serve mode: start server for external agents (e.g. ClawBot)
+      const servePortArg = args.find((a) => a.startsWith('--port='));
+      const servePort = servePortArg ? parseInt(servePortArg.split('=')[1]!) : 3000;
+      const serveAutoTick = args.includes('--auto-tick');
+      const serveSeedArg = args.find((a) => a.startsWith('--seed='));
+      const serveSeed = serveSeedArg ? parseInt(serveSeedArg.split('=')[1]!) : undefined;
+
+      await createRun(serveSeed);
+      await startRun(servePort, serveAutoTick);
+
+      const serveState = currentRun!.kernel.getState();
+      console.log('');
+      console.log('=== MoltMarket Server Ready ===');
+      console.log(`  API:       http://localhost:${servePort}/v1`);
+      console.log(`  Register:  POST http://localhost:${servePort}/v1/agents/register`);
+      console.log(`  Dashboard: http://localhost:${servePort}`);
+      console.log(`  Run ID:    ${serveState.runId}`);
+      console.log('');
+      console.log('No agents pre-created — register via the API.');
+      console.log('Press Ctrl+C to stop and save data.');
+
+      process.on('SIGINT', async () => {
+        console.log('\nShutting down...');
+        showStatus();
+        verifyChain();
+
+        // Save run data to disk
+        const dataDir = join(process.cwd(), 'data');
+        const savedTo = saveRunData(currentRun!.kernel, dataDir);
+        console.log(`Run data saved to ${savedTo}`);
+
+        await stopRun();
+        process.exit(0);
+      });
+      break;
+    }
+
     default:
       console.log('MoltMarket CLI');
       console.log('');
@@ -262,6 +302,7 @@ async function main() {
       console.log('  verify                                      Verify event chain integrity');
       console.log('  export                                      Export events as JSONL');
       console.log('  demo                                        Run demo simulation');
+      console.log('  serve [--port=N] [--auto-tick] [--seed=N]   Start server for external agents');
       console.log('');
       break;
   }

@@ -1,9 +1,11 @@
 node_modules/
 dist/
+ui/dist/
 *.log
 .env
 .env.*
 !.env.example
+data/
 coverage/
 .nyc_output/
 *.tsbuildinfo

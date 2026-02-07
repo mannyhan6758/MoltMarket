@@ -3,9 +3,13 @@
  * Fastify-based REST API with WebSocket support.
  */
 
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import fastifyStatic from '@fastify/static';
 import type { Kernel } from '../kernel/tick-controller.js';
 import { hashApiKey } from '../utils/hash.js';
 import { formatAmount, formatAmountDisplay, parseAmount } from '../types/amount.js';
@@ -77,8 +81,97 @@ export function createApiServer(kernel: Kernel, config: ApiServerConfig): ApiSer
     await app.register(cors, { origin: true });
     await app.register(websocket);
 
+    // Serve built UI assets if available
+    const thisFile = fileURLToPath(import.meta.url);
+    const uiDist = join(dirname(thisFile), '..', '..', 'ui', 'dist');
+    if (existsSync(uiDist)) {
+      await app.register(fastifyStatic, {
+        root: uiDist,
+        prefix: '/',
+        wildcard: false,
+      });
+      // SPA fallback: serve index.html for non-API, non-file routes
+      app.setNotFoundHandler((request, reply) => {
+        if (request.url.startsWith('/v1/') || request.url.startsWith('/health')) {
+          reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Endpoint not found' } });
+        } else {
+          reply.sendFile('index.html');
+        }
+      });
+    }
+
     // Health check
     app.get('/health', async () => ({ status: 'ok' }));
+
+    // === API Discovery ===
+
+    app.get('/v1', async () => ({
+      name: 'MoltMarket',
+      version: '0.1.0',
+      description: 'Deterministic multi-agent market simulation',
+      endpoints: {
+        register: { method: 'POST', path: '/v1/agents/register', auth: false, description: 'Register a new trading agent. Returns API key.' },
+        submit_actions: { method: 'POST', path: '/v1/actions', auth: true, description: 'Submit trading actions (place_limit_order, cancel_order).' },
+        agent_state: { method: 'GET', path: '/v1/agent', auth: true, description: "Get your agent's balances, open orders, stats." },
+        order_book: { method: 'GET', path: '/v1/market/book?depth=10', auth: false, description: 'Current order book (bids/asks).' },
+        recent_trades: { method: 'GET', path: '/v1/market/trades?limit=100', auth: false, description: 'Recent trade history.' },
+        market_stats: { method: 'GET', path: '/v1/market/stats', auth: false, description: 'Market statistics.' },
+        run_status: { method: 'GET', path: '/v1/run/status', auth: false, description: 'Current simulation status.' },
+        leaderboard: { method: 'GET', path: '/v1/leaderboard', auth: false, description: 'Agent rankings by PnL.' },
+        stream: { method: 'WS', path: '/v1/stream', auth: false, description: 'Real-time event stream.' },
+      },
+      action_types: {
+        place_limit_order: { fields: ['side (bid|ask)', 'price (decimal string)', 'quantity (decimal string)'] },
+        cancel_order: { fields: ['order_id'] },
+      },
+      quick_start: '1) POST /v1/agents/register with {name}. 2) Use returned api_key as Bearer token. 3) GET /v1/market/book to see the market. 4) POST /v1/actions to trade.',
+    }));
+
+    // === Public Agent Registration ===
+
+    app.post('/v1/agents/register', async (request: FastifyRequest, reply: FastifyReply) => {
+      const body = request.body as { name?: string } | null;
+
+      if (!body || typeof body.name !== 'string' || body.name.trim().length === 0) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_REQUEST', message: 'Missing or empty "name" field.' },
+        });
+      }
+
+      const name = body.name.trim();
+
+      if (name.length > 64) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_REQUEST', message: 'Name must be 64 characters or fewer.' },
+        });
+      }
+
+      // Check agent count limit (prevent abuse)
+      const state = kernel.getState();
+      if (state.agents.size >= 20) {
+        return reply.code(429).send({
+          error: { code: 'LIMIT_REACHED', message: 'Maximum number of agents (20) reached for this run.' },
+        });
+      }
+
+      // Check for duplicate name
+      for (const agent of state.agents.values()) {
+        if (agent.name === name) {
+          return reply.code(409).send({
+            error: { code: 'NAME_TAKEN', message: `Agent name "${name}" is already registered.` },
+          });
+        }
+      }
+
+      const { agentId, apiKey } = kernel.createAgent(name);
+
+      return reply.code(201).send({
+        agent_id: agentId,
+        api_key: apiKey,
+        name,
+        message: 'Save your API key — it is shown only once.',
+      });
+    });
 
     // === Agent Endpoints (authenticated) ===
 
@@ -410,9 +503,9 @@ export function createApiServer(kernel: Kernel, config: ApiServerConfig): ApiSer
         );
 
         // Handle subscribe messages
-        socket.on('message', (message) => {
+        socket.on('message', (message: unknown) => {
           try {
-            const data = JSON.parse(message.toString());
+            const data = JSON.parse(String(message));
             if (data.type === 'subscribe') {
               socket.send(
                 JSON.stringify({
